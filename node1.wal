@@ -1,0 +1,3 @@
+PUT session:abc123 active
+PUT test:consistency version_1
+PUT test:consistency version_2
