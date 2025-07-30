@@ -455,7 +455,7 @@ public:
     }
 };
 
-// Interactive demo for interviews
+// Interactive demo 
 void interactiveDemo() {
     cout << "\n=== INTERACTIVE DEMO MODE ===" << endl;
     cout << "Commands: put <key> <value>, get <key>, del <key>, nodes, benchmark, exit" << endl;
@@ -538,7 +538,7 @@ void interactiveDemo() {
     }
 }
 
-// Automated demo for interviews
+// Automated demo 
 void automatedDemo() {
     cout << "=== AUTOMATED DISTRIBUTED KEY-VALUE STORE DEMO ===" << endl;
     cout << "Demonstrating all features for system design interview...\n" << endl;
