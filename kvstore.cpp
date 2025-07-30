@@ -149,6 +149,17 @@ public:
             addToHead(newNode);
         }
     }
+    
+    bool remove(const K& key) {
+        unique_lock<shared_mutex> lock(mutex);
+        auto it = cache.find(key);
+        if (it != cache.end()) {
+            removeNode(it->second);
+            cache.erase(key);
+            return true;
+        }
+        return false;
+    }
 };
 
 // Storage Engine with WAL (Write-Ahead Logging)
@@ -245,11 +256,8 @@ public:
         storage.put(key, value);
         cache.put(key, value);
         
-        // Replicate to other nodes (simplified)
-        for (const auto& replica : replica_nodes) {
-            // In real implementation, send over network
-            cout << "Replicating " << key << " to node " << replica << endl;
-        }
+        // Note: Replication is handled at the cluster level
+        // This node just stores the data locally
     }
     
     string get(const string& key) {
@@ -269,7 +277,8 @@ public:
     
     bool remove(const string& key) {
         bool result = storage.remove(key);
-        // Note: LRU cache doesn't need explicit removal as it will eventually evict
+        // Also remove from cache to ensure consistency
+        cache.remove(key);
         return result;
     }
     
@@ -321,10 +330,12 @@ public:
         }
         
         // Write to primary node and replicas
+        cout << "Storing " << key << " on " << responsible_nodes.size() << " nodes for replication" << endl;
         for (const auto& node_id : responsible_nodes) {
             auto it = nodes.find(node_id);
             if (it != nodes.end()) {
                 it->second->put(key, value);
+                cout << "  ✓ Stored on node: " << node_id << endl;
             }
         }
     }
@@ -356,10 +367,13 @@ public:
         auto responsible_nodes = hash_ring.getNodes(key, replication_factor);
         bool success = false;
         
+        cout << "Deleting " << key << " from " << responsible_nodes.size() << " nodes" << endl;
         for (const auto& node_id : responsible_nodes) {
             auto it = nodes.find(node_id);
             if (it != nodes.end()) {
-                success |= it->second->remove(key);
+                bool node_success = it->second->remove(key);
+                success |= node_success;
+                cout << "  " << (node_success ? "✓" : "✗") << " Deleted from node: " << node_id << endl;
             }
         }
         return success;
@@ -432,6 +446,7 @@ public:
 void interactiveDemo() {
     cout << "\n=== INTERACTIVE DEMO MODE ===" << endl;
     cout << "Commands: put <key> <value>, get <key>, del <key>, nodes, benchmark, exit" << endl;
+    cout << "Note: For values with spaces, use quotes like: put user:1001 \"Alice Johnson\"" << endl;
     
     DistributedKVStore cluster(3);
     
@@ -443,8 +458,26 @@ void interactiveDemo() {
     string command;
     while (cout << "\nkvstore> " && cin >> command) {
         if (command == "put") {
-            string key, value;
-            cin >> key >> value;
+            string key;
+            cin >> key;
+            
+            // Read the rest of the line as the value
+            string value;
+            getline(cin, value);
+            
+            // Remove leading space if present
+            if (!value.empty() && value[0] == ' ') {
+                value = value.substr(1);
+            }
+            
+            // Handle quoted values
+            if (!value.empty() && value[0] == '"') {
+                value = value.substr(1); // Remove opening quote
+                if (!value.empty() && value.back() == '"') {
+                    value = value.substr(0, value.length() - 1); // Remove closing quote
+                }
+            }
+            
             cluster.put(key, value);
             cout << "✓ Stored: " << key << " -> " << value << endl;
         }

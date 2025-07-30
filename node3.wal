@@ -1,0 +1,6 @@
+PUT user:1001 "Alice
+PUT user:1001 Alice Johnson
+PUT user:1001 Alice Johnson
+DEL user:1001
+PUT user:1001 Alice Johnson
+DEL user:1001
