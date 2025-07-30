@@ -419,7 +419,8 @@ public:
         }
         
         auto write_end = chrono::high_resolution_clock::now();
-        auto write_duration = chrono::duration_cast<chrono::milliseconds>(write_end - start);
+        auto write_duration_ms = chrono::duration_cast<chrono::milliseconds>(write_end - start);
+        auto write_duration_us = chrono::duration_cast<chrono::microseconds>(write_end - start);
         
         // Read benchmark
         for (int i = 0; i < num_operations; ++i) {
@@ -428,17 +429,29 @@ public:
         }
         
         auto read_end = chrono::high_resolution_clock::now();
-        auto read_duration = chrono::duration_cast<chrono::milliseconds>(read_end - write_end);
+        auto read_duration_ms = chrono::duration_cast<chrono::milliseconds>(read_end - write_end);
+        auto read_duration_us = chrono::duration_cast<chrono::microseconds>(read_end - write_end);
         
         cout << "Write operations: " << num_operations << " in " 
-                  << write_duration.count() << "ms" << endl;
-        cout << "Write throughput: " << (num_operations * 1000 / write_duration.count()) 
-                  << " ops/sec" << endl;
+             << write_duration_ms.count() << "ms (" << write_duration_us.count() << "us)" << endl;
+        if (write_duration_us.count() > 0) {
+            cout << "Write throughput: " << (num_operations * 1000000LL / write_duration_us.count()) 
+                 << " ops/sec" << endl;
+        } else {
+            cout << "Write throughput: N/A (duration too short for accurate measurement)" << endl;
+        }
         
         cout << "Read operations: " << num_operations << " in " 
-                  << read_duration.count() << "ms" << endl;
-        cout << "Read throughput: " << (num_operations * 1000 / read_duration.count()) 
-                  << " ops/sec" << endl;
+             << read_duration_ms.count() << "ms (" << read_duration_us.count() << "us)" << endl;
+        if (read_duration_us.count() > 0) {
+            cout << "Read throughput: " << (num_operations * 1000000LL / read_duration_us.count()) 
+                 << " ops/sec" << endl;
+        } else {
+            cout << "Read throughput: N/A (duration too short for accurate measurement)" << endl;
+        }
+        if (write_duration_ms.count() == 0 || read_duration_ms.count() == 0) {
+            cout << "[Warning] Benchmark completed too quickly for accurate timing. Increase num_operations for more reliable results." << endl;
+        }
     }
 };
 
