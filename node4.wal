@@ -1,0 +1,16 @@
+PUT product:sku456 MacBook Air
+PUT product:sku456 MacBook Air
+PUT order:1001 pending
+PUT order:1003 delivered
+PUT config:max_connections 100
+PUT user:1001 Alice Johnson
+PUT session:def456 inactive
+PUT user:1003 Charlie Brown
+PUT user:1002 Bob Smith
+PUT session:abc123 active
+PUT order:1002 shipped
+PUT product:sku123 iPhone 15 Pro
+PUT config:timeout 30s
+PUT user:1001 Alice Johnson (Updated)
+PUT session:abc123 expired
+DEL user:1003

@@ -63,10 +63,14 @@ public:
         auto it = ring.lower_bound(hash);
         
         set<string> unique_nodes;
-        for (int i = 0; i < count && unique_nodes.size() < count; ++i) {
+        int attempts = 0;
+        int max_attempts = ring.size() * 2; // Prevent infinite loops
+        
+        while (unique_nodes.size() < count && attempts < max_attempts) {
             if (it == ring.end()) it = ring.begin();
             unique_nodes.insert(it->second);
             ++it;
+            ++attempts;
         }
         
         return vector<string>(unique_nodes.begin(), unique_nodes.end());
@@ -329,30 +333,52 @@ public:
         
         cout << "Removing node " << node_id << " and redistributing data..." << endl;
         
-        // Step 1: Get all keys stored on the node to be removed
+        // Step 1: Get all keys and values from the node to be removed
         vector<string> keys_to_redistribute = node_it->second->getAllKeys();
         cout << "Found " << keys_to_redistribute.size() << " keys to redistribute." << endl;
         
-        // Step 2: Remove node from hash ring and cluster
+        // Step 2: Collect all key-value pairs before removing the node
+        vector<pair<string, string>> key_value_pairs;
+        for (const string& key : keys_to_redistribute) {
+            string value = node_it->second->get(key);
+            if (!value.empty()) {
+                key_value_pairs.push_back({key, value});
+            }
+        }
+        
+        // Step 3: Remove node from hash ring and cluster
         hash_ring.removeNode(node_id);
         nodes.erase(node_id);
         
-        // Step 3: Redistribute each key to new responsible nodes
+        // Step 4: Redistribute each key-value pair to new responsible nodes
         int redistributed_count = 0;
-        for (const string& key : keys_to_redistribute) {
-            // Get the value from the node before it's removed
-            string value = node_it->second->get(key);
-            if (!value.empty()) {
-                // Find new responsible nodes for this key
-                auto new_responsible_nodes = hash_ring.getNodes(key, replication_factor);
-                
-                // Redistribute to new nodes
-                for (const string& new_node_id : new_responsible_nodes) {
-                    auto new_node_it = nodes.find(new_node_id);
-                    if (new_node_it != nodes.end()) {
+        for (const auto& kv_pair : key_value_pairs) {
+            const string& key = kv_pair.first;
+            const string& value = kv_pair.second;
+            
+            // Find new responsible nodes for this key
+            // Use min(replication_factor, available_nodes) to avoid asking for more nodes than available
+            int available_nodes = nodes.size();
+            int effective_replication = min(replication_factor, available_nodes);
+            auto new_responsible_nodes = hash_ring.getNodes(key, effective_replication);
+            
+            cout << "    Redistributing key '" << key << "' to " << new_responsible_nodes.size() 
+                 << " nodes (effective replication: " << effective_replication << ", available nodes: " << available_nodes << ")" << endl;
+            
+            // Redistribute to new nodes
+            for (const string& new_node_id : new_responsible_nodes) {
+                auto new_node_it = nodes.find(new_node_id);
+                if (new_node_it != nodes.end()) {
+                    // Check if the key already exists on this node
+                    string existing_value = new_node_it->second->get(key);
+                    if (existing_value.empty()) {
+                        // Key doesn't exist, add it
                         new_node_it->second->put(key, value);
-                        cout << "  ✓ Redistributed key '" << key << "' to node " << new_node_id << endl;
+                        cout << "  ✓ Redistributed key '" << key << "' to node " << new_node_id << " (NEW)" << endl;
                         redistributed_count++;
+                    } else {
+                        // Key already exists, skip
+                        cout << "  - Key '" << key << "' already exists on node " << new_node_id << " (SKIP)" << endl;
                     }
                 }
             }
