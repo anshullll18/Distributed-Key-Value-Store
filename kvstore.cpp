@@ -290,6 +290,11 @@ public:
     
     void setLeader(bool leader) { is_leader = leader; }
     bool isLeader() const { return is_leader; }
+    
+    // Get all keys stored on this node
+    vector<string> getAllKeys() {
+        return storage.getAllKeys();
+    }
 };
 
 // Distributed Key-Value Store Cluster
@@ -314,11 +319,46 @@ public:
     
     void removeNode(const string& node_id) {
         unique_lock<shared_mutex> lock(cluster_mutex);
+        
+        // Check if the node exists
+        auto node_it = nodes.find(node_id);
+        if (node_it == nodes.end()) {
+            cout << "Node " << node_id << " not found in cluster." << endl;
+            return;
+        }
+        
+        cout << "Removing node " << node_id << " and redistributing data..." << endl;
+        
+        // Step 1: Get all keys stored on the node to be removed
+        vector<string> keys_to_redistribute = node_it->second->getAllKeys();
+        cout << "Found " << keys_to_redistribute.size() << " keys to redistribute." << endl;
+        
+        // Step 2: Remove node from hash ring and cluster
         hash_ring.removeNode(node_id);
         nodes.erase(node_id);
         
-        // Redistribute data (simplified)
-        cout << "Node " << node_id << " removed. Data redistribution needed." << endl;
+        // Step 3: Redistribute each key to new responsible nodes
+        int redistributed_count = 0;
+        for (const string& key : keys_to_redistribute) {
+            // Get the value from the node before it's removed
+            string value = node_it->second->get(key);
+            if (!value.empty()) {
+                // Find new responsible nodes for this key
+                auto new_responsible_nodes = hash_ring.getNodes(key, replication_factor);
+                
+                // Redistribute to new nodes
+                for (const string& new_node_id : new_responsible_nodes) {
+                    auto new_node_it = nodes.find(new_node_id);
+                    if (new_node_it != nodes.end()) {
+                        new_node_it->second->put(key, value);
+                        cout << "  ✓ Redistributed key '" << key << "' to node " << new_node_id << endl;
+                        redistributed_count++;
+                    }
+                }
+            }
+        }
+        
+        cout << "✓ Node " << node_id << " removed. " << redistributed_count << " keys redistributed." << endl;
     }
     
     void put(const string& key, const string& value) {
@@ -383,7 +423,7 @@ public:
         shared_lock<shared_mutex> lock(cluster_mutex);
         cout << "Cluster has " << nodes.size() << " nodes:" << endl;
         for (const auto& pair : nodes) {
-            cout << "- Node: " << pair.first << endl;
+            cout << "- Node: " << pair.first << " (keys: " << pair.second->getAllKeys().size() << ")" << endl;
         }
     }
     
@@ -458,7 +498,7 @@ public:
 // Interactive demo 
 void interactiveDemo() {
     cout << "\n=== INTERACTIVE DEMO MODE ===" << endl;
-    cout << "Commands: put <key> <value>, get <key>, del <key>, nodes, benchmark, exit" << endl;
+    cout << "Commands: put <key> <value>, get <key>, del <key>, nodes, benchmark, addnode, removenode, showdata, exit" << endl;
     cout << "Note: For values with spaces, use quotes like: put user:1001 \"Alice Johnson\"" << endl;
     
     DistributedKVStore cluster(3);
@@ -527,13 +567,15 @@ void interactiveDemo() {
             string nodeId;
             cin >> nodeId;
             cluster.removeNode(nodeId);
-            cout << "✓ Removed node: " << nodeId << endl;
+        }
+        else if (command == "showdata") {
+            cluster.printClusterInfo();
         }
         else if (command == "exit") {
             break;
         }
         else {
-            cout << "Unknown command. Available: put, get, del, nodes, benchmark, addnode, removenode, exit" << endl;
+            cout << "Unknown command. Available: put, get, del, nodes, benchmark, addnode, removenode, showdata, exit" << endl;
         }
     }
 }
