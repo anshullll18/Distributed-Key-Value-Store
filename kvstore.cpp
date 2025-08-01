@@ -65,10 +65,15 @@ public:
         auto it = ring.lower_bound(hash);
         
         set<string> unique_nodes;
-        for (int i = 0; i < count && unique_nodes.size() < count; ++i) {
+        int iterations = 0;
+        int max_iterations = ring.size(); // Maximum one full traversal of the ring
+        
+        // Continue until we have 'count' unique nodes or we've traversed the entire ring
+        while (unique_nodes.size() < count && iterations < max_iterations) {
             if (it == ring.end()) it = ring.begin();
             unique_nodes.insert(it->second);
             ++it;
+            ++iterations;
         }
         
         return vector<string>(unique_nodes.begin(), unique_nodes.end());
@@ -495,6 +500,12 @@ public:
             throw runtime_error("No nodes available");
         }
         
+        // Validate we have enough nodes for replication
+        if (responsible_nodes.size() < replication_factor) {
+            cout << "Warning: Only " << responsible_nodes.size() 
+                 << " nodes available for replication (requested " << replication_factor << ")" << endl;
+        }
+        
         // Write to primary node and replicas
         for (const auto& node_id : responsible_nodes) {
             auto it = nodes.find(node_id);
@@ -510,6 +521,12 @@ public:
         auto responsible_nodes = hash_ring.getNodes(key, replication_factor);
         if (responsible_nodes.empty()) {
             return "";
+        }
+        
+        // Validate we have enough nodes for replication
+        if (responsible_nodes.size() < replication_factor) {
+            cout << "Warning: Only " << responsible_nodes.size() 
+                 << " nodes available for replication (requested " << replication_factor << ")" << endl;
         }
         
         // Try to read from any available replica
@@ -530,6 +547,12 @@ public:
         
         auto responsible_nodes = hash_ring.getNodes(key, replication_factor);
         bool success = false;
+        
+        // Validate we have enough nodes for replication
+        if (responsible_nodes.size() < replication_factor) {
+            cout << "Warning: Only " << responsible_nodes.size() 
+                 << " nodes available for replication (requested " << replication_factor << ")" << endl;
+        }
         
         for (const auto& node_id : responsible_nodes) {
             auto it = nodes.find(node_id);

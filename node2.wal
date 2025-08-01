@@ -1,3 +1,0 @@
-PUT user:1001 Alice
-PUT user:1002 Bob"  
-PUT session:abc123 active
